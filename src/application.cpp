@@ -3,6 +3,7 @@
 #include "gl_debug.h"
 #include "shader.h"
 
+#include <cmath>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,17 +24,143 @@ Application::~Application() {
   exit(EXIT_SUCCESS);
 }
 
+struct Camera {
+  float position[3] = {0.0f, 0.5f, 3.0f};
+  float direction[3] = {0.0f, 0.0f, -1.0f};
+  float fov = 45.0f;
+
+  // New: Rotation state
+  float yaw = -90.0f;
+  float pitch = 0.0f;
+};
+
+void update_camera(GLFWwindow *window, Camera &camera, float dt,
+                   bool &is_mouse_captured) {
+  // 1. Toggle Mouse Capture with TAB
+  static bool tab_pressed = false;
+  if (glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS) {
+    if (!tab_pressed) {
+      is_mouse_captured = !is_mouse_captured;
+      glfwSetInputMode(window, GLFW_CURSOR,
+                       is_mouse_captured ? GLFW_CURSOR_DISABLED
+                                         : GLFW_CURSOR_NORMAL);
+      tab_pressed = true;
+    }
+  } else {
+    tab_pressed = false;
+  }
+
+  // If mouse isn't captured, don't update camera
+  if (!is_mouse_captured)
+    return;
+
+  // 2. Mouse Look (Yaw/Pitch)
+  static double last_x = 0, last_y = 0;
+  static bool first_mouse = true;
+  double xpos, ypos;
+  glfwGetCursorPos(window, &xpos, &ypos);
+
+  if (first_mouse) {
+    last_x = xpos;
+    last_y = ypos;
+    first_mouse = false;
+  }
+
+  float xoffset = (float)(xpos - last_x);
+  float yoffset =
+      (float)(last_y -
+              ypos); // Reversed since y-coordinates go from bottom to top
+  last_x = xpos;
+  last_y = ypos;
+
+  float sensitivity = 0.1f;
+  camera.yaw += xoffset * sensitivity;
+  camera.pitch += yoffset * sensitivity;
+
+  // Clamp pitch to prevent screen flipping
+  if (camera.pitch > 89.0f)
+    camera.pitch = 89.0f;
+  if (camera.pitch < -89.0f)
+    camera.pitch = -89.0f;
+
+  // Calculate Direction Vector
+  float yaw_rad = camera.yaw * (3.14159f / 180.0f);
+  float pitch_rad = camera.pitch * (3.14159f / 180.0f);
+
+  camera.direction[0] = cos(yaw_rad) * cos(pitch_rad);
+  camera.direction[1] = sin(pitch_rad);
+  camera.direction[2] = sin(yaw_rad) * cos(pitch_rad);
+
+  // Normalize direction (manual math since we don't have GLM here)
+  float len = sqrt(camera.direction[0] * camera.direction[0] +
+                   camera.direction[1] * camera.direction[1] +
+                   camera.direction[2] * camera.direction[2]);
+  camera.direction[0] /= len;
+  camera.direction[1] /= len;
+  camera.direction[2] /= len;
+
+  // 3. Keyboard Movement (WASD)
+  float speed = 2.5f * dt;
+
+  // Forward/Backward
+  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+    camera.position[0] += camera.direction[0] * speed;
+    camera.position[1] += camera.direction[1] * speed;
+    camera.position[2] += camera.direction[2] * speed;
+  }
+  if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+    camera.position[0] -= camera.direction[0] * speed;
+    camera.position[1] -= camera.direction[1] * speed;
+    camera.position[2] -= camera.direction[2] * speed;
+  }
+
+  // Strafe Right/Left (Cross Product of Direction and World Up)
+  // World Up is (0, 1, 0)
+  // Cross((x,y,z), (0,1,0)) = (-z, 0, x)
+  float right[3] = {-camera.direction[2], 0.0f, camera.direction[0]};
+
+  // Normalize Right vector
+  float r_len = sqrt(right[0] * right[0] + right[2] * right[2]);
+  if (r_len > 0) {
+    right[0] /= r_len;
+    right[2] /= r_len;
+  }
+
+  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+    camera.position[0] += right[0] * speed;
+    camera.position[1] += right[1] * speed; // usually 0 for walking
+    camera.position[2] += right[2] * speed;
+  }
+  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+    camera.position[0] -= right[0] * speed;
+    camera.position[1] -= right[1] * speed;
+    camera.position[2] -= right[2] * speed;
+  }
+
+  // Fly Up/Down (Space/Shift)
+  if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+    camera.position[1] += speed;
+  }
+  if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+    camera.position[1] -= speed;
+  }
+}
+
 void Application::run() {
 
   // Render loop
   int width, height;
   float ratio;
 
-  float fov = 45.0f;
+  Camera camera;
+
+  bool capture_mouse = false; // State to toggle between UI and Look mode
 
   while (!glfwWindowShouldClose(window)) {
     // Update performance metrics
     update_performance_metrics(last_time, frame_time, fps);
+
+    update_camera(window, camera, frame_time, capture_mouse);
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -41,7 +168,18 @@ void Application::run() {
 
     // Draw imgui components
     draw_performance_window(fps, frame_time);
-    draw_settings(fov);
+
+    if (!capture_mouse) {
+      draw_settings(camera.fov);
+    } else {
+      // Show a hint
+      ImGui::SetNextWindowPos(ImVec2(width / 2 - 100, height - 50));
+      ImGui::Begin("Msg", NULL,
+                   ImGuiWindowFlags_NoDecoration |
+                       ImGuiWindowFlags_NoBackground);
+      ImGui::TextColored(ImVec4(1, 1, 0, 1), "Press TAB to release mouse");
+      ImGui::End();
+    }
 
     glfwGetFramebufferSize(window, &width, &height);
     glViewport(0, 0, width, height);
@@ -49,8 +187,14 @@ void Application::run() {
 
     shader->use();
     shader->set_float("iTime", (float)glfwGetTime());
-    shader->set_2float("iResolution", (float)width, (float)height);
-    shader->set_float("fov", fov);
+    shader->set_vec2("iResolution", (float)width, (float)height);
+
+    // Pass the updated camera structs
+    shader->set_vec3("u_camera.position", camera.position[0],
+                     camera.position[1], camera.position[2]);
+    shader->set_vec3("u_camera.direction", camera.direction[0],
+                     camera.direction[1], camera.direction[2]);
+    shader->set_float("u_camera.fov", camera.fov);
 
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -139,15 +283,13 @@ void Application::update_performance_metrics(double &last_time,
   last_time = current_time;
 }
 
-
-
 void Application::draw_performance_window(float fps, float frame_time) {
   ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(200, 80), ImGuiCond_FirstUseEver);
   ImGui::Begin("Performance", nullptr,
-               ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
-                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs |
-                   ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoTitleBar);
+               ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                   ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                   ImGuiWindowFlags_NoTitleBar);
 
   // Right-aligned numbers with fixed width
   char fps_str[16];
@@ -161,19 +303,13 @@ void Application::draw_performance_window(float fps, float frame_time) {
   ImGui::End();
 }
 
-
 void Application::draw_settings(float &fov) {
 
-    // 2. Build your UI hierarchy using ImGui functions
-    ImGui::Begin("My First Window"); // Start a new window
-    ImGui::Text("Hello, world!");     // Add text
+  // 2. Build your UI hierarchy using ImGui functions
+  ImGui::Begin("My First Window"); // Start a new window
+  ImGui::Text("Hello, world!");    // Add text
 
+  ImGui::SliderFloat("FOV (deg)", &fov, 20, 120);
 
-    ImGui::SliderFloat("FOV (deg)", &fov, 20, 120);
-    if (ImGui::Button("Click Me")) {  // Add a button
-        // Handle button click logic here
-    }
-    ImGui::End(); // End the window
-
-
+  ImGui::End(); // End the window
 }
