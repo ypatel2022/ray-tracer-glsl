@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(glfwTestProject LANGUAGES CXX C)
+project(raytracer LANGUAGES CXX C)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # GLFW Configuration
@@ -83,8 +83,8 @@ file(GLOB SHADER_FILES
 add_custom_target(copy_shaders ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${SHADER_FILES}
-            ${SHADER_OUTPUT_DIR}
+    ${SHADER_FILES}
+    ${SHADER_OUTPUT_DIR}
 )
 
 add_dependencies(${PROJECT_NAME} copy_shaders)

@@ -26,11 +26,17 @@ private:
                                   float &fps);
 
   void draw_performance_window(float fps, float frame_time);
-  void draw_settings(float &fov);
+  void draw_settings(float &fov, float sun_dir[3], float &sun_intensity,
+                     float sun_color[3], float &sky_intensity,
+                     float sky_color[3], bool &accumulate_when_still);
 
   GLFWwindow *window;
   Shader *shader;
   GLuint vao;
+  GLuint prev_frame_tex = 0;
+  int prev_frame_width = 0;
+  int prev_frame_height = 0;
+  bool prev_frame_valid = false;
 
   // Frame time and FPS tracking
   double last_time = 0.0;
