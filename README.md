@@ -1,39 +1,37 @@
-# GLFW + GLAD + ImGui + GLSL Starter (CMake)
+# GLSL Ray Tracer
 
-A minimal, batteries included starter project for modern OpenGL development using GLFW, GLAD, Dear ImGui, and GLSL shaders.
-Built with a clean CMake setup and designed to be easy to extend for graphics experiments and tooling.
+This is a small personal project where I explore ray tracing directly in a
+GLSL fragment shader. The C++ side is intentionally minimal: it just creates
+an OpenGL window, feeds camera/light data to the shader, and accumulates frames
+to help denoise.
+
+![Demo](assets/demo.png)
 
 ## Features
 
-- GLFW for windowing and input
-- GLAD for OpenGL function loading
-- Dear ImGui for immediate mode UI
-- External GLSL shader support (`.vert`, `.frag`)
-- Automatic shader copying at build time
+- GLSL ray tracer with spheres, a ground plane, and basic materials
+- Accumulation-based denoising when the camera is still
+- ImGui controls for camera FOV, sun/sky lighting, and accumulation behavior
+- First-person fly camera (mouse + WASD + Space/Shift)
 - Cross platform (macOS, Linux, Windows)
-- Simple, readable CMake configuration
-
-## Dependencies
-
-- **GLFW** and **ImGui** are included as git submodules
-- **GLAD** is generated from https://glad.dav1d.de and vendored into the repo
-- OpenGL (system provided)
-
-## Getting the Source
-
-This repo uses submodules. Clone it with:
-
-```bash
-git clone https://github.com/ypatel2022/glfw-glad-cmake --recursive
-```
+- Simple CMake build
 
 ## Requirements
 
 - CMake 3.28+
 - C++17 compatible compiler
-- OpenGL 3.3+ (macOS uses 4.1 core profile)
+- OpenGL 4.1 core profile (macOS) or 3.3+ elsewhere
 
-## Build Instructions
+## Clone and Run Locally
+
+This repo uses submodules for GLFW and ImGui, so make sure you clone with
+`--recursive`:
+
+```bash
+git clone https://github.com/ypatel2022/ray-tracer-glsl --recursive
+```
+
+## Build and Run
 
 ### macOS / Linux
 
@@ -42,7 +40,7 @@ mkdir build
 cd build
 cmake ..
 cmake --build .
-./glfwTestProject
+./raytracer
 ```
 
 ### Windows (MinGW)
@@ -52,55 +50,12 @@ mkdir build
 cd build
 cmake -G "MinGW Makefiles" ..
 cmake --build .
-./glfwTestProject.exe
+./raytracer.exe
 ```
 
-## GLSL Shader Support
+## Controls
 
-- Shaders live in the `shaders/` directory
-- Supports `.vert` and `.frag` files
-- Shaders are **automatically copied** into the runtime output directory at build time
-- No hard coded paths required at runtime
-
-At build time, CMake copies:
-
-```
-shaders/*.vert
-shaders/*.frag
-```
-
-to:
-
-```
-<build>/shaders/
-```
-
-This allows you to load shaders at runtime using relative paths like:
-
-```
-shaders/basic.vert
-shaders/basic.frag
-```
-
-## Project Structure
-
-```
-.
-├── src/              # Application source
-├── include/          # Headers and utilities
-├── shaders/          # GLSL shader sources
-├── libs/
-│   ├── glfw/         # Submodule
-│   ├── imgui/        # Submodule
-│   └── glad/         # Vendored GLAD loader
-├── CMakeLists.txt
-└── README.md
-```
-
-## Next Steps
-
-- Add shader hot reloading
-- Add texture loading
-- Add OpenGL debug callbacks
-- Wrap shaders into a small C++ abstraction
-# ray-tracer-glsl
+- `W/A/S/D` move
+- `Space` / `Left Shift` up / down
+- Mouse look (capture with `Tab`, release with `Tab`)
+- `Esc` quit
